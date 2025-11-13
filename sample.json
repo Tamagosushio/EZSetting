@@ -1,0 +1,25 @@
+{
+  "id": 67,
+  "skills": [
+    {
+      "isLike": true,
+      "language": "C++",
+      "year": 3.5
+    },
+    {
+      "isLike": false,
+      "language": "Python",
+      "year": 5.0
+    }
+  ],
+  "tags": [
+    "C++",
+    "tui",
+    "json"
+  ],
+  "user": {
+    "isStudent": true,
+    "name": "tamagosushi",
+    "profileImage": null
+  }
+}
