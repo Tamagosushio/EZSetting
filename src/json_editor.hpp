@@ -49,6 +49,7 @@ class JsonEditor {
     edit_component_ = Input(&editable_content_, "Enter value (e.g., \"text\", 123, true, null)", edit_input_option_);
     edit_component_ |= CatchEvent([this](Event event) {
       if (event == Event::Return) {
+        OnEditorEnter();
         tree_menu_->TakeFocus();
         return true;
       }
@@ -199,9 +200,6 @@ class JsonEditor {
       selected_editor_tab_index_ = 1;
       if (selected_node->is_null()) {
         editable_content_ = "null";
-      }
-      else if (selected_node->is_string()) {
-        editable_content_ = selected_node->get<std::string>();
       } else {
         editable_content_ = selected_node->dump();
       }
@@ -229,11 +227,6 @@ class JsonEditor {
   }
 
   void UpdateJsonValue(json& parent_node, const std::string& key, const std::string& new_value) {
-    // std::string cleaned_value = new_value;
-    // cleaned_value.erase(
-    //   std::remove(cleaned_value.begin(), cleaned_value.end(), '\n'), 
-    //   cleaned_value.end()
-    // );
     json* target_node = nullptr;
     if (parent_node.is_array()) {
       try {
