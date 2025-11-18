@@ -73,11 +73,13 @@ class JsonEditor {
     main_layout_ = BuildMainLayout();
     add_modal_ = BuildAddModal();
     delete_modal_ = BuildDeleteModal();
+    rename_modal_ = BuildRenameModal();
     // 全コンポーネントの管理
     modal_container_ = Container::Tab({
       main_layout_,
       add_modal_,
       delete_modal_,
+      rename_modal_,
     }, &modal_state_);
     // 状態初期化
     UpdateTreeEntries();
@@ -99,6 +101,11 @@ class JsonEditor {
         document = dbox({
           document,
           delete_modal_->Render() | clear_under | center,
+        });
+      } else if (modal_state_ == 3) {
+        document = dbox({
+          document,
+          rename_modal_->Render() | clear_under | center,
         });
       }
       return document;
@@ -220,7 +227,7 @@ class JsonEditor {
         filler(),
         text(editor_hint_) | dim,
         filler(),
-        text("[a] Add (Key/Value) | [d] Delete | [q] Quit") | dim,
+        text("[a] Add (Key/Value) | [d] Delete | [r] Rename | [q] Quit") | dim,
       }) | borderLight;
     });
     // 全体レイアウト
@@ -240,6 +247,9 @@ class JsonEditor {
         }
         if (event == Event::Character('d')) {
           return OnOpenDeleteModal();
+        }
+        if (event == Event::Character('r')) {
+          return OnOpenRenameModal();
         }
       }
       return false;
@@ -370,6 +380,44 @@ class JsonEditor {
     return ApplyModalBehavors(modal_renderer);
   }
 
+  /// @brief 改名モーダルを構築する。
+  /// @return モーダルのコンポーネント。
+  Component BuildRenameModal() {
+    rename_key_input_ = Input(&new_key_, "Rename Key", InputOption{.on_enter = [this]{ OnRenameSubmit(); }});
+    rename_key_input_ |= CatchEvent([this](Event event) {
+      if (event == Event::Return) {
+        OnRenameSubmit();
+        return true;
+      }
+      return false;
+    });
+    auto buttons = Container::Horizontal({
+      Button("OK", [this] { OnAddSubmit(); }),
+      Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }),
+    });
+    auto modal = Container::Vertical({
+      rename_key_input_,
+      buttons,
+    });
+    auto modal_renderer = Renderer(modal, [this, buttons] {
+      json& node = GetNode(input_json_, current_path_);
+      if (node.is_array()) {
+        return vbox({
+          text("Cannot Rename an Element in an Array") | bold,
+          separator(),
+          Button("Go Back", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); })->Render(),
+        }) | border;
+      }
+      return vbox({
+        text("Rename This Key") | bold,
+        separator(),
+        rename_key_input_->Render(),
+        buttons->Render(),
+      }) | border;
+    });
+    return ApplyModalBehavors(modal_renderer);
+  }
+
   /// @brief 追加モーダルを開く処理。
   /// @return モーダルを開けたらtrue。開けなかったらfalse。
   bool OnOpenAddModal() {
@@ -459,6 +507,55 @@ class JsonEditor {
     RefreshTreeAndCloseModal(selected_tree_item_index_ - 1);
   }
 
+  /// @brief 改名モーダルを開く処理。
+  /// @return モーダルを開けたらtrue。開けなかったらfalse。
+  bool OnOpenRenameModal() {
+    std::string key = GetCurrentSelectionKey();
+    if (key == "[None]" || key == ".." || GetNode(input_json_, current_path_).is_array()) {
+      editor_hint_ = "Error: Cannot rename this item.";
+      return false;
+    }
+    new_key_ = key;
+    modal_state_ = 3;
+    rename_key_input_->TakeFocus();
+    return true;
+  }
+
+  /// @brief 改名モーダルで行う処理。
+  void OnRenameSubmit() {
+    json& node = GetNode(input_json_, current_path_);
+    if (!node.is_object()) {
+      modal_state_ = 0;
+      tree_menu_->TakeFocus();
+      return;
+    }
+    std::string cleaned_key = CleanStringForJson(new_key_);
+    if (cleaned_key.empty()) {
+      editor_hint_ = "Error: Key cannot be empty.";
+      rename_key_input_->TakeFocus();
+      return;
+    }
+    std::string current_key = GetCurrentSelectionKey();
+    if (cleaned_key != current_key && node.contains(cleaned_key)) {
+      editor_hint_ = "Error: This key is already in use.";
+      rename_key_input_->TakeFocus();
+      return;
+    }
+    node[cleaned_key] = node[current_key];
+    if (cleaned_key != current_key) {
+      node.erase(current_key);
+    }
+    UpdateTreeEntries();
+    int new_index = 0;
+    for (size_t i = 0; i < tree_entries_.size(); ++i) {
+      if (GetKeyFromEntry(tree_entries_[i]) == cleaned_key) {
+        new_index = static_cast<int>(i);
+        break;
+      }
+    }
+    RefreshTreeAndCloseModal(new_index);
+  }
+
   /// @brief モーダル共通の動作（Escで閉じる）を適用。
   /// @param modal 適用させるモーダル。
   /// @return 適用後のコンポーネント。
@@ -545,8 +642,10 @@ class JsonEditor {
   std::string new_value_;
   Component add_key_input_;
   Component add_value_input_;
+  Component rename_key_input_;
   Component main_layout_;
   Component add_modal_;
   Component delete_modal_;
+  Component rename_modal_;
   Component modal_container_;
 };
