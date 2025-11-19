@@ -12,20 +12,23 @@
 #include <iostream>
 #include <functional>
 #include <algorithm>
+#include <optional>
 
 using namespace ftxui;
 using json = nlohmann::json;
+
+/// @brief メニュー項目が持つ情報
+struct TreeEntry {
+  std::string label;
+  std::string key;
+  json::value_t type;
+};
 
 /// @brief ルートからのパスに基づいてjsonのノードを得る。
 /// @param root ルートから始まるjsonデータ。
 /// @param path 得るノードまでのパス。
 /// @return jsonノードの参照。
 json& GetNode(json& root, const std::vector<std::string>& path);
-
-/// @brief ツリーのエントリーからキーを得る。
-/// @param entry キーを得たいエントリー。
-/// @return エントリーに対応するキー。
-std::string GetKeyFromEntry(const std::string& entry);
 
 class JsonEditor {
  public:
@@ -127,6 +130,11 @@ class JsonEditor {
   /// @return ボタンオプション。
   ButtonOption GetModalButtonOption() const;
 
+  /// @brief JSONの型に対応した色を得る。
+  /// @param type JSONの型。
+  /// @return 色を付けるデコレーター。
+  Decorator GetColorFromType(const json::value_t type) const;
+
   // フィールド
   json& input_json_;
   std::string filename_;
@@ -134,7 +142,8 @@ class JsonEditor {
   int selected_tree_item_index_;
   int selected_editor_tab_index_;
   std::vector<std::string> current_path_;
-  std::vector<std::string> tree_entries_;
+  std::vector<TreeEntry> entries_;
+  std::vector<std::string> menu_entries_;
   std::string viewer_content_;
   std::string editable_content_;
   std::string editor_hint_;

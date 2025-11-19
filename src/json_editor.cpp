@@ -17,14 +17,6 @@ json& GetNode(json& root, const std::vector<std::string>& path) {
   return *node;
 }
 
-std::string GetKeyFromEntry(const std::string& entry) {
-  size_t pos = entry.find(" (");
-  if (pos != std::string::npos) {
-    return entry.substr(0, pos);
-  }
-  return entry;
-}
-
 
 JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<void()> on_quit)
   : input_json_(data), filename_(filename), on_quit_(on_quit), selected_tree_item_index_(0), selected_editor_tab_index_(0) {
@@ -40,7 +32,17 @@ JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<vo
   });
   menu_option_.on_change = [this] { UpdateEditorPane(); };
   menu_option_.on_enter = [this] { OnTreeEnter(); };
-  tree_menu_ = Menu(&tree_entries_, &selected_tree_item_index_, menu_option_);
+  menu_option_.entries_option.transform = [this](const EntryState& state) {
+    Element element = text(state.label);
+    if (0 <= state.index && state.index < entries_.size()) {
+        element |= GetColorFromType(entries_[state.index].type);
+    }
+    if (state.focused) {
+      element |= inverted;
+    }
+    return element;
+  };
+  tree_menu_ = Menu(&menu_entries_, &selected_tree_item_index_, menu_option_);
   breadcrumb_component_ = std::make_shared<BreadcrumbComponent>(
     std::vector<std::string>{"root"},
     [this](int index) {
@@ -95,44 +97,48 @@ Component JsonEditor::GetLayout() {
 }
 
 void JsonEditor::UpdateTreeEntries() {
-  tree_entries_.clear();
+  entries_.clear();
+  menu_entries_.clear();
   if (!current_path_.empty()) {
-    tree_entries_.push_back("..");
+    entries_.push_back({"..", "..", json::value_t::discarded});
+    menu_entries_.push_back("..");
   }
   json& node = GetNode(input_json_, current_path_);
   if (node.is_object()) {
     for (auto& [key, val] : node.items()) {
-      std::string entry = key;
-      if (val.is_object()) entry += " (Object)";
-      else if (val.is_array()) entry += " (Array)";
-      tree_entries_.push_back(entry);
+      std::string label = key;
+      if (val.is_object()) label += " (Object)";
+      else if (val.is_array()) label += " (Array)";
+      entries_.push_back({label, key, val.type()});
+      menu_entries_.push_back(label);
     }
   } else if (node.is_array()) {
     for (size_t i = 0; i < node.size(); ++i) {
-      std::string entry = std::to_string(i);
+      std::string key = std::to_string(i);
       json& val = node[i];
-      if (val.is_object()) entry += " (Object)";
-      else if (val.is_array()) entry += " (Array)";
-      tree_entries_.push_back(entry);
+      std::string label = key;
+      if (val.is_object()) label += " (Object)";
+      else if (val.is_array()) label += " (Array)";
+      entries_.push_back({label, key, val.type()});
+      menu_entries_.push_back(label);
     }
   }
 }
 
 void JsonEditor::OnTreeEnter() {
-  if (tree_entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= tree_entries_.size()) return;
-  std::string selected_entry = tree_entries_[selected_tree_item_index_];
+  if (entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= entries_.size()) return;
+  const auto& entry = entries_[selected_tree_item_index_];
   bool path_changed = false;
-  if (selected_entry == "..") {
+  if (entry.key == "..") {
     if (!current_path_.empty()) {
       current_path_.pop_back();
       path_changed = true;
     }
   } else {
-    std::string key = GetKeyFromEntry(selected_entry);
     json& node = GetNode(input_json_, current_path_);
-    json& selected_node = (node.is_array()) ? node[std::stoul(key)] : node[key];
+    json& selected_node = (node.is_array()) ? node[std::stoul(entry.key)] : node[entry.key];
     if (selected_node.is_object() || selected_node.is_array()) {
-      current_path_.push_back(key);
+      current_path_.push_back(entry.key);
       path_changed = true;
     } else {
       edit_component_->TakeFocus();
@@ -152,7 +158,7 @@ void JsonEditor::UpdateEditorPane() {
   json* selected_node = GetCurrentSelectedNode(key);
   if (!selected_node) {
     selected_editor_tab_index_ = 0;
-    viewer_content_ = (tree_entries_.empty() || GetCurrentSelectionKey() == "[None]")
+    viewer_content_ = (menu_entries_.empty() || GetCurrentSelectionKey() == "[None]")
       ? "Select an item from the left."
       : "Select an item to view/edit.";
     return;
@@ -209,7 +215,7 @@ Component JsonEditor::BuildMainLayout() {
   });
   // 全体レイアウト
   auto main_container = Container::Horizontal({
-    tree_pane,
+    tree_pane | size(WIDTH, GREATER_THAN, 32),
     editor_pane | flex,
   });
   auto main_layout = Container::Vertical({
@@ -250,6 +256,7 @@ void JsonEditor::OnEditorEnter() {
   }
   json& parent_node = GetNode(input_json_, current_path_);
   UpdateJsonValue(parent_node, key, editable_content_);
+  UpdateTreeEntries();
   tree_menu_->TakeFocus();
 }
 
@@ -276,10 +283,10 @@ void JsonEditor::UpdateJsonValue(json& parent_node, const std::string& key, cons
 }
 
 std::string JsonEditor::GetCurrentSelectionKey() {
-  if (tree_entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= tree_entries_.size()) {
+  if (entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= entries_.size()) {
     return "[None]";
   }
-  return GetKeyFromEntry(tree_entries_[selected_tree_item_index_]);
+  return entries_[selected_tree_item_index_].key;
 }
 
 void JsonEditor::UpdateBreadcrumbComponent() {
@@ -431,7 +438,7 @@ void JsonEditor::OnAddSubmit() {
     node.push_back(parsed_value);
     UpdateTreeEntries();
     // フォーカスするのは最後の項目
-    new_index = static_cast<int>(tree_entries_.size() - 1);
+    new_index = static_cast<int>(entries_.size() - 1);
   } else {
     modal_state_ = 0;
     tree_menu_->TakeFocus();
@@ -520,7 +527,7 @@ Component JsonEditor::ApplyModalBehavors(Component modal) {
 
 void JsonEditor::RefreshTreeAndCloseModal(int focus_index) {
   UpdateTreeEntries();
-  if (focus_index < 0 || focus_index >= tree_entries_.size()) {
+  if (focus_index < 0 || focus_index >= entries_.size()) {
     focus_index = 0;
   }
   selected_tree_item_index_ = focus_index;
@@ -535,16 +542,16 @@ std::string JsonEditor::CleanStringForJson(std::string str) {
 }
 
 json* JsonEditor::GetCurrentSelectedNode(std::string& out_key) const {
-  if (tree_entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= tree_entries_.size()) {
+  if (entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= entries_.size()) {
     out_key = "[None]";
     return nullptr;
   }
-  std::string selected_entry = tree_entries_[selected_tree_item_index_];
-  if (selected_entry == "..") {
+  const TreeEntry& entry = entries_[selected_tree_item_index_];
+  if (entry.key == "..") {
     out_key = "..";
     return nullptr;
   }
-  out_key = GetKeyFromEntry(selected_entry);
+  out_key = entry.key;
   json& parent_node = GetNode(input_json_, current_path_);
   if (parent_node.is_array()) {
     try {
@@ -561,8 +568,8 @@ json* JsonEditor::GetCurrentSelectedNode(std::string& out_key) const {
 }
 
 int JsonEditor::GetIndexFromEntries(const std::string& key) {
-  for (size_t i = 0; i < tree_entries_.size(); ++i) {
-    if (GetKeyFromEntry(tree_entries_[i]) == key) {
+  for (size_t i = 0; i < entries_.size(); ++i) {
+    if (entries_[i].key == key) {
       return static_cast<int>(i);
     }
   }
@@ -579,4 +586,18 @@ ButtonOption JsonEditor::GetModalButtonOption() const {
     return element | center | border;
   };
   return option;
+}
+
+Decorator JsonEditor::GetColorFromType(const json::value_t type) const {
+  switch (type) {
+    case json::value_t::array:            return color(Color::MagentaLight);
+    case json::value_t::boolean:          return color(Color::YellowLight);
+    case json::value_t::null:             return color(Color::Red);
+    case json::value_t::number_float:
+    case json::value_t::number_unsigned:
+    case json::value_t::number_integer:   return color(Color::Blue);
+    case json::value_t::object:           return color(Color::Cyan);
+    case json::value_t::string:           return color(Color::Green);
+    case json::value_t::discarded:        return color(Color::GrayLight);
+  }
 }
