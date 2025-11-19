@@ -451,13 +451,7 @@ class JsonEditor {
       node[cleaned_key] = nullptr;
       std::string key_to_focus = cleaned_key;
       UpdateTreeEntries();
-      // 新しいキーのインデックスを走査
-      for (size_t i = 0; i < tree_entries_.size(); ++i) {
-        if (GetKeyFromEntry(tree_entries_[i]) == key_to_focus) {
-          new_index = static_cast<int>(i);
-          break;
-        }
-      }
+      new_index = GetIndexFromEntries(cleaned_key);
     } else if (node.is_array()) {
       std::string cleaned_value = CleanStringForJson(new_value_);
       json parsed_value;
@@ -546,13 +540,7 @@ class JsonEditor {
       node.erase(current_key);
     }
     UpdateTreeEntries();
-    int new_index = 0;
-    for (size_t i = 0; i < tree_entries_.size(); ++i) {
-      if (GetKeyFromEntry(tree_entries_[i]) == cleaned_key) {
-        new_index = static_cast<int>(i);
-        break;
-      }
-    }
+    int new_index = GetIndexFromEntries(cleaned_key);
     RefreshTreeAndCloseModal(new_index);
   }
 
@@ -619,6 +607,18 @@ class JsonEditor {
       }
     }
     return nullptr;
+  }
+
+  /// @brief キーのエントリー内インデックスを得る。
+  /// @param key 検索するキー。
+  /// @return キーのインデックス。なければ-1。
+  int GetIndexFromEntries(const std::string& key) {
+    for (size_t i = 0; i < tree_entries_.size(); ++i) {
+      if (GetKeyFromEntry(tree_entries_[i]) == key) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
   }
 
   json& input_json_;
