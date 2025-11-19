@@ -28,7 +28,11 @@ FetchContent_Declare(json
 )
 FetchContent_MakeAvailable(ftxui json)
 
-add_executable(EZSetting src/main.cpp)
+add_executable(EZSetting
+  src/main.cpp
+  src/json_editor.cpp
+  src/breadcrumbs.cpp
+)
 target_include_directories(EZSetting PRIVATE src)
 
 target_link_libraries(EZSetting

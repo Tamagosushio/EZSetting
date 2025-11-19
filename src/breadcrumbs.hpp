@@ -9,58 +9,25 @@ using namespace ftxui;
 
 class BreadcrumbComponent : public ComponentBase {
 public:
-  BreadcrumbComponent(
-    const std::vector<std::string>& initial_entries,
-    std::function<void(int)> on_select)
-    : on_select_(on_select) {
-    
-    breadcrumb_container_ = Container::Horizontal({});
-    Add(breadcrumb_container_); 
+  /// @brief パンくずリストのコンポーネントを構築。
+  /// @param initial_entries 初期エントリー。
+  /// @param on_select 引数を選択インデックスに取る、選択時の処理。
+  BreadcrumbComponent(const std::vector<std::string>& initial_entries, std::function<void(int)> on_select);
 
-    SetEntries(initial_entries);
-  }
+  /// @brief エントリーを上書きセット。
+  /// @param new_entries 上書きするエントリー。
+  void SetEntries(const std::vector<std::string>& new_entries);
 
-  void SetEntries(const std::vector<std::string>& new_entries) {
-    entries_ = new_entries;
-    breadcrumb_container_->DetachAllChildren();
-    for (int i = 0; i < entries_.size(); ++i) {
-      auto button = Button(entries_[i], [this, i]() {
-        if (on_select_) {
-          on_select_(i);
-        }
-      }, MakeFlatButtonOption());
-      breadcrumb_container_->Add(button);
-    }
-  }
-
-  Element OnRender() override {
-    std::vector<Element> elements;
-    int num_children = breadcrumb_container_->ChildCount();
-    for (int i = 0; i < num_children; ++i) {
-      elements.push_back(breadcrumb_container_->ChildAt(i)->Render());
-      if (i < num_children - 1) {
-        elements.push_back(text(" > ") | dim);
-      }
-    }
-    return hbox(elements);
-  }
+  /// @brief レンダリング処理。
+  /// @return パンくずリストのエレメント。
+  Element OnRender() override;
 
 private:
-  ftxui::ButtonOption MakeFlatButtonOption() const {
-    ftxui::ButtonOption flat_button_option;
-    flat_button_option.transform = [](const EntryState& state) {
-      auto element = text(state.label);
-      if (state.focused) {
-        (element |= bold) |= underlined;
-      }
-      if (state.active) {
-        element |= inverted;
-      }
-      return element;
-    };
-    return flat_button_option;
-  }
+  /// @brief パンくずリストの要素となるボタンのオプションを生成。
+  /// @return ボタンのオプション。
+  ftxui::ButtonOption MakeFlatButtonOption() const;
 
+  // フィールド
   ftxui::Component breadcrumb_container_; 
   std::vector<std::string> entries_;
   std::function<void(int)> on_select_;
