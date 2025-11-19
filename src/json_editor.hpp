@@ -32,7 +32,8 @@ class JsonEditor {
   /// @brief JSONエディターを構築する。
   /// @param data 編集するJSONデータ
   /// @param filename 読み込んだファイル名
-  JsonEditor(json& data, const std::string& filename);
+  /// @param on_quit qキーによる終了処理。
+  JsonEditor(json& data, const std::string& filename, std::function<void()> on_quit);
 
   /// @brief 最終的なレンダリングコンポーネントを取得する。
   Component GetLayout();
@@ -129,6 +130,7 @@ class JsonEditor {
   // フィールド
   json& input_json_;
   std::string filename_;
+  std::function<void()> on_quit_;
   int selected_tree_item_index_;
   int selected_editor_tab_index_;
   std::vector<std::string> current_path_;

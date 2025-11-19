@@ -26,7 +26,8 @@ int main(int argc, char* argv[]) {
   input_file.close(); 
 
   auto screen = ScreenInteractive::Fullscreen();
-  JsonEditor editor(input_json, argv[1]);
+
+  JsonEditor editor(input_json, argv[1], screen.ExitLoopClosure());
 
   auto custom_loop = [&] {
     try {

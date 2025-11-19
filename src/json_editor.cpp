@@ -26,8 +26,8 @@ std::string GetKeyFromEntry(const std::string& entry) {
 }
 
 
-JsonEditor::JsonEditor(json& data, const std::string& filename)
-  : input_json_(data), filename_(filename), selected_tree_item_index_(0), selected_editor_tab_index_(0) {
+JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<void()> on_quit)
+  : input_json_(data), filename_(filename), on_quit_(on_quit), selected_tree_item_index_(0), selected_editor_tab_index_(0) {
   // メインUIコンポーネント
   edit_component_ = Input(&editable_content_, "Enter value (e.g., \"text\", 123, true, null)", edit_input_option_);
   edit_component_ |= CatchEvent([this](Event event) {
@@ -227,6 +227,10 @@ Component JsonEditor::BuildMainLayout() {
       }
       if (event == Event::Character('r')) {
         return OnOpenRenameModal();
+      }
+      if (event == Event::Character('q')) {
+        if (on_quit_) on_quit_();
+        return true;
       }
     }
     return false;
