@@ -122,6 +122,10 @@ class JsonEditor {
   /// @return キーのインデックス。なければ-1。
   int GetIndexFromEntries(const std::string& key);
 
+  /// @brief モーダル内ボタンに適用するオプションを得る。
+  /// @return ボタンオプション。
+  ButtonOption GetModalButtonOption() const;
+
   // フィールド
   json& input_json_;
   std::string filename_;

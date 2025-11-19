@@ -302,8 +302,8 @@ Component JsonEditor::BuildAddModal() {
     return false;
   });
   auto buttons = Container::Horizontal({
-    Button("OK", [this] { OnAddSubmit(); }),
-    Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }),
+    Button("OK", [this] { OnAddSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
+    Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
   });
   auto modal = Container::Vertical({
     add_key_input_,
@@ -322,10 +322,10 @@ Component JsonEditor::BuildAddModal() {
       input_field = add_value_input_->Render();
     }
     return vbox({
-      text(title) | bold,
+      text(title) | center,
       separator(),
       input_field,
-      buttons->Render(),
+      buttons->Render() | center,
     }) | border;
   });
   return ApplyModalBehavors(modal_renderer);
@@ -333,16 +333,17 @@ Component JsonEditor::BuildAddModal() {
 
 Component JsonEditor::BuildDeleteModal() {
   auto buttons = Container::Horizontal({
-    Button("Yes (Delete)", [this] { OnDeleteSubmit(); }),
-    Button("No (Cancel)", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }),
+    Button("Yes (Delete)", [this] { OnDeleteSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 18),
+    Button("No (Cancel)", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 18),
   });
   auto modal_renderer = Renderer(buttons, [this, buttons] {
     return vbox({
-      text("Are you sure you want to delete this item?") | bold,
-      text("Item: " + GetCurrentSelectionKey()),
-      text("This action cannnot be undone."),
+      text("Are you sure you want to delete this item?") | center,
+      text("This action cannnot be undone.") | center,
       separator(),
-      buttons->Render(),
+      text("Item: " + GetCurrentSelectionKey()) | center,
+      separator(),
+      buttons->Render() | center,
     }) | border;
   });
   return ApplyModalBehavors(modal_renderer);
@@ -358,8 +359,8 @@ Component JsonEditor::BuildRenameModal() {
     return false;
   });
   auto buttons = Container::Horizontal({
-    Button("OK", [this] { OnAddSubmit(); }),
-    Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }),
+    Button("OK", [this] { OnAddSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
+    Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
   });
   auto modal = Container::Vertical({
     rename_key_input_,
@@ -369,16 +370,16 @@ Component JsonEditor::BuildRenameModal() {
     json& node = GetNode(input_json_, current_path_);
     if (node.is_array()) {
       return vbox({
-        text("Cannot Rename an Element in an Array") | bold,
+        text("Cannot Rename an Element in an Array"),
         separator(),
         Button("Go Back", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); })->Render(),
       }) | border;
     }
     return vbox({
-      text("Rename This Key") | bold,
+      text("Rename This Key") | center,
       separator(),
       rename_key_input_->Render(),
-      buttons->Render(),
+      buttons->Render() | center,
     }) | border;
   });
   return ApplyModalBehavors(modal_renderer);
@@ -562,4 +563,16 @@ int JsonEditor::GetIndexFromEntries(const std::string& key) {
     }
   }
   return -1;
+}
+
+ButtonOption JsonEditor::GetModalButtonOption() const {
+  auto option = ButtonOption::Simple();
+  option.transform = [](const EntryState& s) {
+    auto element = text(s.label);
+    if (s.focused) {
+      element |= inverted;
+    }
+    return element | center | border;
+  };
+  return option;
 }
