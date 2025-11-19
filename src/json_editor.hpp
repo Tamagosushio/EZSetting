@@ -12,7 +12,7 @@
 #include <iostream>
 #include <functional>
 #include <algorithm>
-#include <optional>
+#include <stack>
 
 using namespace ftxui;
 using json = nlohmann::json;
@@ -22,6 +22,39 @@ struct TreeEntry {
   std::string label;
   std::string key;
   json::value_t type;
+};
+
+/// @brief 操作単位
+struct EditAction {
+  std::function<void()> undo;
+  std::function<void()> redo;
+  std::vector<std::string> path;
+  std::string focus_key;
+};
+
+/// @brief 履歴管理
+class HistoryManager {
+ public:
+  /// @brief 操作を保存する。
+  void Push(const EditAction& action);
+
+  /// @brief Undo可能か。
+  bool CanUndo() const;
+
+  /// @brief Redo可能か。
+  bool CanRedo() const;
+  
+  /// @brief Undoを実行する。
+  /// @return Undoした操作。
+  const EditAction* Undo();
+
+  /// @brief Redoを実行する。
+  /// @return Redoした操作。
+  const EditAction* Redo();
+
+ private:
+  std::stack<EditAction> undo_stack_;
+  std::stack<EditAction> redo_stack_;
 };
 
 /// @brief ルートからのパスに基づいてjsonのノードを得る。
@@ -41,6 +74,17 @@ class JsonEditor {
   /// @brief 最終的なレンダリングコンポーネントを取得する。
   Component GetLayout();
 
+ private:
+  /// @brief Undo処理を実行。
+  void PerformUndo();
+
+  /// @brief Redo処理を実行。
+  void PerformRedo();
+
+  /// @brief Undo/Redo後に画面の状態を復元する。
+  /// @param action 復元する操作。
+  void RestoreView(const EditAction& action);
+
   /// @brief 現在のパスに基づいてツリーを更新。
   void UpdateTreeEntries();
 
@@ -49,8 +93,7 @@ class JsonEditor {
 
   /// @brief エディタ/ビューアの内容を更新する。
   void UpdateEditorPane();
-  
- private:
+
   /// @brief メインレイアウトを構築する。
   Component BuildMainLayout();
   
@@ -139,6 +182,7 @@ class JsonEditor {
   json& input_json_;
   std::string filename_;
   std::function<void()> on_quit_;
+  HistoryManager history_manager_;
   int selected_tree_item_index_;
   int selected_editor_tab_index_;
   std::vector<std::string> current_path_;

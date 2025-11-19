@@ -17,6 +17,38 @@ json& GetNode(json& root, const std::vector<std::string>& path) {
   return *node;
 }
 
+void HistoryManager::Push(const EditAction& action) {
+  undo_stack_.push(action);
+  while (!redo_stack_.empty()) {
+    redo_stack_.pop();
+  }
+}
+
+bool HistoryManager::CanUndo() const {
+  return !undo_stack_.empty();
+}
+
+bool HistoryManager::CanRedo() const {
+  return !redo_stack_.empty();
+}
+
+const EditAction* HistoryManager::Undo() {
+  if (!CanUndo()) return nullptr;
+  EditAction action = undo_stack_.top();
+  undo_stack_.pop();
+  action.undo();
+  redo_stack_.push(action);
+  return &redo_stack_.top();
+}
+
+const EditAction* HistoryManager::Redo() {
+  if (!CanRedo()) return nullptr;
+  EditAction action = redo_stack_.top();
+  redo_stack_.pop();
+  action.redo();
+  undo_stack_.push(action);
+  return &undo_stack_.top();
+}
 
 JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<void()> on_quit)
   : input_json_(data), filename_(filename), on_quit_(on_quit), selected_tree_item_index_(0), selected_editor_tab_index_(0) {
@@ -94,6 +126,34 @@ Component JsonEditor::GetLayout() {
     }
     return document;
   });
+}
+
+void JsonEditor::PerformUndo() {
+  if (history_manager_.CanUndo()) {
+    const EditAction* action = history_manager_.Undo();
+    if (action) {
+      RestoreView(*action);
+    }
+  }
+}
+
+void JsonEditor::PerformRedo() {
+  if (history_manager_.CanRedo()) {
+    const EditAction* action = history_manager_.Redo();
+    if (action) {
+      RestoreView(*action);
+    }
+  }
+}
+
+void JsonEditor::RestoreView(const EditAction& action) {
+  current_path_ = action.path;
+  UpdateBreadcrumbComponent();
+  UpdateTreeEntries();
+  const int new_index = GetIndexFromEntries(action.focus_key);
+  selected_tree_item_index_ = new_index;
+  UpdateEditorPane();
+  tree_menu_->TakeFocus();
 }
 
 void JsonEditor::UpdateTreeEntries() {
@@ -210,7 +270,7 @@ Component JsonEditor::BuildMainLayout() {
       filler(),
       text(editor_hint_) | dim,
       filler(),
-      text("[a] Add (Key/Value) | [d] Delete | [r] Rename | [q] Quit") | dim,
+      text("[a] Add (Key/Value) | [d] Delete | [r] Rename | [z] Undo | [y] Redo | [q] Quit") | dim,
     }) | borderLight;
   });
   // 全体レイアウト
@@ -225,6 +285,9 @@ Component JsonEditor::BuildMainLayout() {
   });
   main_layout |= CatchEvent([this](Event event) {
     if (modal_state_ == 0) {
+      if (edit_component_->Focused()) {
+        return false;
+      }
       if (event == Event::Character('a')) {
         return OnOpenAddModal();
       }
@@ -236,6 +299,14 @@ Component JsonEditor::BuildMainLayout() {
       }
       if (event == Event::Character('q')) {
         if (on_quit_) on_quit_();
+        return true;
+      }
+      if (event == Event::Character('z')) {
+        PerformUndo();
+        return true;
+      }
+      if (event == Event::Character('y')) {
+        PerformRedo();
         return true;
       }
     }
@@ -416,6 +487,7 @@ bool JsonEditor::OnOpenAddModal() {
 void JsonEditor::OnAddSubmit() {
   json& node = GetNode(input_json_, current_path_);
   int new_index = -1;
+  std::vector<std::string> path = current_path_;
   if (node.is_object()) {
     std::string cleaned_key = CleanStringForJson(new_key_);
     if (cleaned_key.empty()) {
@@ -424,7 +496,16 @@ void JsonEditor::OnAddSubmit() {
       return;
     }
     node[cleaned_key] = nullptr;
-    std::string key_to_focus = cleaned_key;
+    history_manager_.Push({
+      [this, path, cleaned_key]() {
+        GetNode(input_json_, path).erase(cleaned_key);
+      },
+      [this, path, cleaned_key]() {
+        GetNode(input_json_, path)[cleaned_key] = nullptr;
+      },
+      path,
+      cleaned_key,
+    });
     UpdateTreeEntries();
     new_index = GetIndexFromEntries(cleaned_key);
   } else if (node.is_array()) {
@@ -436,6 +517,17 @@ void JsonEditor::OnAddSubmit() {
       parsed_value = cleaned_value;
     }
     node.push_back(parsed_value);
+    history_manager_.Push({
+      [this, path]() {
+        json& arr = GetNode(input_json_, path);
+        if (!arr.empty()) arr.erase(arr.size() - 1);
+      },
+      [this, path, parsed_value]() {
+        GetNode(input_json_, path).push_back(parsed_value);
+      },
+      path,
+      std::to_string(node.size() - 1),
+    });
     UpdateTreeEntries();
     // フォーカスするのは最後の項目
     new_index = static_cast<int>(entries_.size() - 1);
@@ -461,11 +553,46 @@ void JsonEditor::OnDeleteSubmit() {
   std::string key = GetCurrentSelectionKey();
   if (key == "[None]" || key == "..") return;
   json& node = GetNode(input_json_, current_path_);
+  std::vector<std::string> path = current_path_;
+  json deleted_value;
+  int deleted_index = -1;
   try {
     if (node.is_object()) {
+      deleted_value = node[key];
       node.erase(key);
+      history_manager_.Push({
+        [this, path, key, deleted_value]() {
+          GetNode(input_json_, path)[key] = deleted_value;
+        },
+        [this, path, key]() {
+          GetNode(input_json_, path).erase(key);
+        },
+        path,
+        key,
+      });
     } else if (node.is_array()) {
+      deleted_index = std::stoul(key);
+      deleted_value = node[deleted_index];
       node.erase(std::stoul(key));
+      history_manager_.Push({
+        [this, path, deleted_index, deleted_value]() {
+          json& arr = GetNode(input_json_, path);
+          if (arr.is_array()) {
+            auto iter = arr.begin();
+            if (deleted_index <= arr.size()) {
+              arr.insert(iter + deleted_index, deleted_value);
+            }
+          }
+        },
+        [this, path, deleted_index]() {
+          json& arr = GetNode(input_json_, path);
+          if (arr.is_array() && deleted_index < arr.size()) {
+            arr.erase(deleted_index);
+          }
+        },
+        path,
+        std::to_string(deleted_index > 0 ? deleted_index - 1 : 0),
+      });
     }
   } catch (...) {
     editor_hint_ = "Error: Failed to delete item.";
@@ -508,6 +635,21 @@ void JsonEditor::OnRenameSubmit() {
   if (cleaned_key != current_key) {
     node.erase(current_key);
   }
+  std::vector<std::string> path = current_path_;
+  history_manager_.Push({
+    [this, path, current_key, cleaned_key]() {
+      json& node = GetNode(input_json_, path);
+      node[current_key] = node[cleaned_key];
+      node.erase(cleaned_key);
+    },
+    [this, path, current_key, cleaned_key]() {
+      json& node = GetNode(input_json_, path);
+      node[cleaned_key] = node[current_key];
+      node.erase(current_key);
+    },
+    path,
+    cleaned_key,
+  });
   UpdateTreeEntries();
   int new_index = GetIndexFromEntries(cleaned_key);
   RefreshTreeAndCloseModal(new_index);
