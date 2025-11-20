@@ -321,12 +321,50 @@ Element JsonEditor::RenderViewer() {
 
 void JsonEditor::OnEditorEnter() {
   std::string key;
-  if (!GetCurrentSelectedNode(key)) {
+  json* node_ptr = GetCurrentSelectedNode(key);
+  if (!node_ptr) {
     tree_menu_->TakeFocus();
     return;
   }
+  json old_value = *node_ptr;
   json& parent_node = GetNode(input_json_, current_path_);
   UpdateJsonValue(parent_node, key, editable_content_);
+  json* new_node_ptr = nullptr;
+  if (node_ptr->is_array()) {
+    try {
+      new_node_ptr = &parent_node[std::stoul(key)];
+    } catch (...) { }
+  } else {
+    new_node_ptr = &parent_node[key];
+  }
+  if (new_node_ptr && old_value != *new_node_ptr) {
+    json new_value = *new_node_ptr;
+    std::vector<std::string> path = current_path_;
+    history_manager_.Push({
+      [this, path, key, old_value]() {
+        json& parent = GetNode(input_json_, path);
+        if (parent.is_array()) {
+          try {
+            parent[std::stoul(key)] = old_value;
+          } catch (...) {}
+        } else {
+          parent[key] = old_value;
+        }
+      },
+      [this, path, key, new_value]() {
+        json& parent = GetNode(input_json_, path);
+        if (parent.is_array()) {
+          try {
+            parent[std::stoul(key)] = new_value;
+          } catch (...) {}
+        } else {
+          parent[key] = new_value;
+        }
+      },
+      path,
+      key,
+    });
+  }
   UpdateTreeEntries();
   tree_menu_->TakeFocus();
 }
