@@ -201,6 +201,7 @@ class JsonEditor {
   int modal_state_;
   std::string new_key_;
   std::string new_value_;
+  std::string rename_key_;
   Component add_key_input_;
   Component add_value_input_;
   Component rename_key_input_;

@@ -432,7 +432,7 @@ Component JsonEditor::BuildDeleteModal() {
 }
 
 Component JsonEditor::BuildRenameModal() {
-  rename_key_input_ = Input(&new_key_, "Rename Key", InputOption{.on_enter = [this]{ OnRenameSubmit(); }});
+  rename_key_input_ = Input(&rename_key_, "Rename Key", InputOption{.on_enter = [this]{ OnRenameSubmit(); }});
   rename_key_input_ |= CatchEvent([this](Event event) {
     if (event == Event::Return) {
       OnRenameSubmit();
@@ -606,7 +606,7 @@ bool JsonEditor::OnOpenRenameModal() {
     editor_hint_ = "Error: Cannot rename this item.";
     return false;
   }
-  new_key_ = key;
+  rename_key_ = key;
   modal_state_ = 3;
   rename_key_input_->TakeFocus();
   return true;
@@ -619,7 +619,7 @@ void JsonEditor::OnRenameSubmit() {
     tree_menu_->TakeFocus();
     return;
   }
-  std::string cleaned_key = CleanStringForJson(new_key_);
+  std::string cleaned_key = CleanStringForJson(rename_key_);
   if (cleaned_key.empty()) {
     editor_hint_ = "Error: Key cannot be empty.";
     rename_key_input_->TakeFocus();
