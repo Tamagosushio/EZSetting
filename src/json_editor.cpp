@@ -69,7 +69,7 @@ JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<vo
     if (0 <= state.index && state.index < entries_.size()) {
         element |= GetColorFromType(entries_[state.index].type);
     }
-    if (state.focused) {
+    if (state.active && tree_menu_->Focused()) {
       element |= inverted;
     }
     return element;
