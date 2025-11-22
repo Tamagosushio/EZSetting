@@ -57,11 +57,6 @@ class HistoryManager {
   std::stack<EditAction> redo_stack_;
 };
 
-/// @brief ルートからのパスに基づいてjsonのノードを得る。
-/// @param root ルートから始まるjsonデータ。
-/// @param path 得るノードまでのパス。
-/// @return jsonノードの参照。
-json& GetNode(json& root, const std::vector<std::string>& path);
 
 class JsonEditor {
  public:
@@ -75,6 +70,77 @@ class JsonEditor {
   Component GetLayout();
 
  private:
+  /* レイアウト & レンダリング */
+  /// @brief メインレイアウトを構築する。
+  Component BuildMainLayout();
+
+  /// @brief ビューアタブを描画する。
+  Element RenderViewer();
+
+  /// @brief パンくずリストコンポーネントを更新する。
+  void UpdateBreadcrumbComponent();
+
+  /* ツリー & ナビゲーション */
+  /// @brief 現在のパスに基づいてツリーを更新。
+  void UpdateTreeEntries();
+
+  /// @brief ツリーでEnterが押されたときの処理。
+  void OnTreeEnter();
+
+  /* エディタ & コンテンツ */
+  /// @brief エディタ/ビューアの内容を更新する。
+  void UpdateEditorPane();
+
+  /// @brief エディタでEnterが押された時に行う処理。
+  void OnEditorEnter();
+
+  /// @brief JSONデータをキーと値で更新する。
+  void UpdateJsonValue(json& parent_node, const std::string& key, const std::string& new_value);
+
+  /* モーダル */
+  /// @brief 追加モーダルを構築する。
+  /// @return モーダルのコンポーネント。
+  Component BuildAddModal();
+
+  /// @brief 追加モーダルを開く処理。
+  /// @return モーダルを開けたらtrue。開けなかったらfalse。
+  bool OnOpenAddModal();
+
+  /// @brief 追加モーダルで行う処理。
+  void OnAddSubmit();
+
+  /// @brief 削除モーダルを構築する。
+  /// @return モーダルのコンポーネント。
+  Component BuildDeleteModal();
+
+  /// @brief 削除モーダルを開く処理。
+  /// @return モーダルを開けたらtrue。開けなかったらfalse。
+  bool OnOpenDeleteModal();
+
+  /// @brief 削除モーダルで行う処理。
+  void OnDeleteSubmit();
+
+  /// @brief 改名モーダルを構築する。
+  /// @return モーダルのコンポーネント。
+  Component BuildRenameModal();
+
+  /// @brief 改名モーダルを開く処理。
+  /// @return モーダルを開けたらtrue。開けなかったらfalse。
+  bool OnOpenRenameModal();
+
+  /// @brief 改名モーダルで行う処理。
+  void OnRenameSubmit();
+
+  /// @brief モーダル共通の動作（Escで閉じる）を適用。
+  /// @param modal 適用させるモーダル。
+  /// @return 適用後のコンポーネント。
+  Component ApplyModalBehavors(Component modal);
+
+  /// @brief ツリーを更新→インデックスにフォーカスを当てる→モーダルを閉じる。
+  /// @param focus_index フォーカスを当てるインデックス。
+  void RefreshTreeAndCloseModal(int focus_index);
+
+  /* Undo/Redo */
   /// @brief Undo処理を実行。
   void PerformUndo();
 
@@ -85,100 +151,41 @@ class JsonEditor {
   /// @param action 復元する操作。
   void RestoreView(const EditAction& action);
 
-  /// @brief 現在のパスに基づいてツリーを更新。
-  void UpdateTreeEntries();
+  /* ユーティリティ */
+  /// @brief ルートからのパスに基づいてjsonのノードを得る。
+  /// @param root ルートから始まるjsonデータ。
+  /// @param path 得るノードまでのパス。
+  /// @return jsonノードの参照。
+  json& GetNode(json& root, const std::vector<std::string>& path) const;
 
-  /// @brief ツリーでEnterが押されたときの処理。
-  void OnTreeEnter();
-
-  /// @brief エディタ/ビューアの内容を更新する。
-  void UpdateEditorPane();
-
-  /// @brief メインレイアウトを構築する。
-  Component BuildMainLayout();
-  
-  /// @brief ビューアタブを描画する。
-  Element RenderViewer();
-
-  /// @brief エディタでEnterが押された時に行う処理。
-  void OnEditorEnter();
-  
-  /// @brief JSONデータをキーと値で更新する。
-  void UpdateJsonValue(json& parent_node, const std::string& key, const std::string& new_value);
-  
-  /// @brief ツリーで現在選択されている項目のキーを得る。
-  std::string GetCurrentSelectionKey();
-  
-  /// @brief パンくずリストコンポーネントを更新する。
-  void UpdateBreadcrumbComponent();
-  
-  /// @brief 追加モーダルを構築する。
-  /// @return モーダルのコンポーネント。
-  Component BuildAddModal();
-  
-  /// @brief 削除モーダルを構築する。
-  /// @return モーダルのコンポーネント。
-  Component BuildDeleteModal();
-  
-  /// @brief 改名モーダルを構築する。
-  /// @return モーダルのコンポーネント。
-  Component BuildRenameModal();
-  
-  /// @brief 追加モーダルを開く処理。
-  /// @return モーダルを開けたらtrue。開けなかったらfalse。
-  bool OnOpenAddModal();
-  
-  /// @brief 追加モーダルで行う処理。
-  void OnAddSubmit();
-  
-  /// @brief 削除モーダルを開く処理。
-  /// @return モーダルを開けたらtrue。開けなかったらfalse。
-  bool OnOpenDeleteModal();
-  
-  /// @brief 削除モーダルで行う処理。
-  void OnDeleteSubmit();
-  
-  /// @brief 改名モーダルを開く処理。
-  /// @return モーダルを開けたらtrue。開けなかったらfalse。
-  bool OnOpenRenameModal();
-  
-  /// @brief 改名モーダルで行う処理。
-  void OnRenameSubmit();
-  
-  /// @brief モーダル共通の動作（Escで閉じる）を適用。
-  /// @param modal 適用させるモーダル。
-  /// @return 適用後のコンポーネント。
-  Component ApplyModalBehavors(Component modal);
-  
-  /// @brief ツリーを更新→インデックスにフォーカスを当てる→モーダルを閉じる。
-  /// @param focus_index フォーカスを当てるインデックス。
-  void RefreshTreeAndCloseModal(int focus_index);
-  
   /// @brief 文字列から改行文字を削除する。
   /// @param str 対象の文字列。
   /// @return 削除後の文字列。
-  std::string CleanStringForJson(std::string str);
-  
+  std::string CleanStringForJson(std::string str) const;
+
+  /// @brief ツリーで現在選択されている項目のキーを得る。
+  std::string GetCurrentSelectionKey();
+
   /// @brief 現在ツリーで選択されているノードへのポインタとキー/インデックスを得る。
   /// @param[out] out_key 選択されたキー/インデックスが格納される。
   /// @return ノードへのポインタ。選択不可の場合はnullptr。
   json* GetCurrentSelectedNode(std::string& out_key) const;
-  
+
   /// @brief キーのエントリー内インデックスを得る。
   /// @param key 検索するキー。
   /// @return キーのインデックス。なければ-1。
-  int GetIndexFromEntries(const std::string& key);
-
-  /// @brief モーダル内ボタンに適用するオプションを得る。
-  /// @return ボタンオプション。
-  ButtonOption GetModalButtonOption() const;
+  int GetIndexFromEntries(const std::string& key) const;
 
   /// @brief JSONの型に対応した色を得る。
   /// @param type JSONの型。
   /// @return 色を付けるデコレーター。
   Decorator GetColorFromType(const json::value_t type) const;
 
-  // フィールド
+  /// @brief モーダル内ボタンに適用するオプションを得る。
+  /// @return ボタンオプション。
+  ButtonOption GetModalButtonOption() const;
+
+  /* フィールド */
   json& input_json_;
   std::string filename_;
   std::function<void()> on_quit_;
@@ -191,13 +198,15 @@ class JsonEditor {
   std::string viewer_content_;
   std::string editable_content_;
   std::string editor_hint_;
-  // メインUI
+
+  /* メインUI */
   MenuOption menu_option_;
   Component tree_menu_;
   InputOption edit_input_option_;
   Component edit_component_;
   std::shared_ptr<BreadcrumbComponent> breadcrumb_component_;
-  // モーダル
+
+  /* モーダル */
   int modal_state_;
   std::string new_key_;
   std::string new_value_;

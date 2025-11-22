@@ -1,21 +1,5 @@
 #include "json_editor.hpp"
 
-json& GetNode(json& root, const std::vector<std::string>& path) {
-  json* node = &root;
-  for (const auto& key_or_index : path) {
-    try {
-      if (node->is_object()) {
-        node = &(*node)[key_or_index];
-      } else if (node->is_array()) {
-        size_t index = std::stoul(key_or_index);
-        node = &(*node)[index];
-      }
-    } catch (...) {
-      return root;
-    }
-  }
-  return *node;
-}
 
 void HistoryManager::Push(const EditAction& action) {
   undo_stack_.push(action);
@@ -128,32 +112,88 @@ Component JsonEditor::GetLayout() {
   });
 }
 
-void JsonEditor::PerformUndo() {
-  if (history_manager_.CanUndo()) {
-    const EditAction* action = history_manager_.Undo();
-    if (action) {
-      RestoreView(*action);
+Component JsonEditor::BuildMainLayout() {
+  // 左ペイン
+  auto tree_pane = Renderer(tree_menu_, [this] {
+    return tree_menu_->Render() | border;
+  });
+  // 右ペイン
+  auto editor_component = Container::Tab({
+    Renderer([this] { return RenderViewer(); }),
+    edit_component_,
+  }, &selected_editor_tab_index_);
+  auto editor_pane = Renderer(editor_component, [this, editor_component] {
+    auto title = "View/Edit: " + GetCurrentSelectionKey();
+    return vbox({
+      text(title) | bold,
+      separator(),
+      editor_component->Render() | flex,
+    }) | yframe | border;
+  });
+  // 上部
+  auto breadcrumbs_bar = Renderer(breadcrumb_component_, [this] {
+    return breadcrumb_component_->Render() | center | borderLight;
+  });
+  // 下部
+  auto status_bar = Renderer([this] {
+    return hbox({
+      text("File: " + filename_),
+      filler(),
+      text(editor_hint_) | dim,
+      filler(),
+      text("[a] Add (Key/Value) | [d] Delete | [r] Rename | [z] Undo | [y] Redo | [q] Quit") | dim,
+    }) | borderLight;
+  });
+  // 全体レイアウト
+  auto main_container = Container::Horizontal({
+    tree_pane | size(WIDTH, GREATER_THAN, 32),
+    editor_pane | flex,
+  });
+  auto main_layout = Container::Vertical({
+    breadcrumbs_bar,
+    main_container | flex,
+    status_bar,
+  });
+  main_layout |= CatchEvent([this](Event event) {
+    if (modal_state_ == 0) {
+      if (edit_component_->Focused()) {
+        return false;
+      }
+      if (event == Event::Character('a')) {
+        return OnOpenAddModal();
+      }
+      if (event == Event::Character('d')) {
+        return OnOpenDeleteModal();
+      }
+      if (event == Event::Character('r')) {
+        return OnOpenRenameModal();
+      }
+      if (event == Event::Character('q')) {
+        if (on_quit_) on_quit_();
+        return true;
+      }
+      if (event == Event::Character('z')) {
+        PerformUndo();
+        return true;
+      }
+      if (event == Event::Character('y')) {
+        PerformRedo();
+        return true;
+      }
     }
-  }
+    return false;
+  });
+  return main_layout;
 }
 
-void JsonEditor::PerformRedo() {
-  if (history_manager_.CanRedo()) {
-    const EditAction* action = history_manager_.Redo();
-    if (action) {
-      RestoreView(*action);
-    }
-  }
+Element JsonEditor::RenderViewer() {
+  return paragraph(viewer_content_);
 }
 
-void JsonEditor::RestoreView(const EditAction& action) {
-  current_path_ = action.path;
-  UpdateBreadcrumbComponent();
-  UpdateTreeEntries();
-  const int new_index = GetIndexFromEntries(action.focus_key);
-  selected_tree_item_index_ = new_index;
-  UpdateEditorPane();
-  tree_menu_->TakeFocus();
+void JsonEditor::UpdateBreadcrumbComponent() {
+  std::vector<std::string> entries{"root"};
+  entries.insert(entries.end(), current_path_.begin(), current_path_.end());
+  breadcrumb_component_->SetEntries(entries);
 }
 
 void JsonEditor::UpdateTreeEntries() {
@@ -241,84 +281,6 @@ void JsonEditor::UpdateEditorPane() {
   }
 }
 
-Component JsonEditor::BuildMainLayout() {
-  // 左ペイン
-  auto tree_pane = Renderer(tree_menu_, [this] {
-    return tree_menu_->Render() | border;
-  });
-  // 右ペイン
-  auto editor_component = Container::Tab({
-    Renderer([this] { return RenderViewer(); }),
-    edit_component_,
-  }, &selected_editor_tab_index_);
-  auto editor_pane = Renderer(editor_component, [this, editor_component] {
-    auto title = "View/Edit: " + GetCurrentSelectionKey();
-    return vbox({
-      text(title) | bold,
-      separator(),
-      editor_component->Render() | flex,
-    }) | yframe | border;
-  });
-  // 上部
-  auto breadcrumbs_bar = Renderer(breadcrumb_component_, [this] {
-    return breadcrumb_component_->Render() | center | borderLight;
-  });
-  // 下部
-  auto status_bar = Renderer([this] {
-    return hbox({
-      text("File: " + filename_),
-      filler(),
-      text(editor_hint_) | dim,
-      filler(),
-      text("[a] Add (Key/Value) | [d] Delete | [r] Rename | [z] Undo | [y] Redo | [q] Quit") | dim,
-    }) | borderLight;
-  });
-  // 全体レイアウト
-  auto main_container = Container::Horizontal({
-    tree_pane | size(WIDTH, GREATER_THAN, 32),
-    editor_pane | flex,
-  });
-  auto main_layout = Container::Vertical({
-    breadcrumbs_bar,
-    main_container | flex,
-    status_bar,
-  });
-  main_layout |= CatchEvent([this](Event event) {
-    if (modal_state_ == 0) {
-      if (edit_component_->Focused()) {
-        return false;
-      }
-      if (event == Event::Character('a')) {
-        return OnOpenAddModal();
-      }
-      if (event == Event::Character('d')) {
-        return OnOpenDeleteModal();
-      }
-      if (event == Event::Character('r')) {
-        return OnOpenRenameModal();
-      }
-      if (event == Event::Character('q')) {
-        if (on_quit_) on_quit_();
-        return true;
-      }
-      if (event == Event::Character('z')) {
-        PerformUndo();
-        return true;
-      }
-      if (event == Event::Character('y')) {
-        PerformRedo();
-        return true;
-      }
-    }
-    return false;
-  });
-  return main_layout;
-}
-
-Element JsonEditor::RenderViewer() {
-  return paragraph(viewer_content_);
-}
-
 void JsonEditor::OnEditorEnter() {
   std::string key;
   json* node_ptr = GetCurrentSelectedNode(key);
@@ -391,19 +353,6 @@ void JsonEditor::UpdateJsonValue(json& parent_node, const std::string& key, cons
   }
 }
 
-std::string JsonEditor::GetCurrentSelectionKey() {
-  if (entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= entries_.size()) {
-    return "[None]";
-  }
-  return entries_[selected_tree_item_index_].key;
-}
-
-void JsonEditor::UpdateBreadcrumbComponent() {
-  std::vector<std::string> entries{"root"};
-  entries.insert(entries.end(), current_path_.begin(), current_path_.end());
-  breadcrumb_component_->SetEntries(entries);
-}
-
 Component JsonEditor::BuildAddModal() {
   add_key_input_ = Input(&new_key_, "New Key", InputOption{.on_enter = [this]{ OnAddSubmit(); }});
   add_key_input_ |= CatchEvent([this](Event event) {
@@ -445,60 +394,6 @@ Component JsonEditor::BuildAddModal() {
       text(title) | center,
       separator(),
       input_field,
-      buttons->Render() | center,
-    }) | border;
-  });
-  return ApplyModalBehavors(modal_renderer);
-}
-
-Component JsonEditor::BuildDeleteModal() {
-  auto buttons = Container::Horizontal({
-    Button("Yes (Delete)", [this] { OnDeleteSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 18),
-    Button("No (Cancel)", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 18),
-  });
-  auto modal_renderer = Renderer(buttons, [this, buttons] {
-    return vbox({
-      text("Are you sure you want to delete this item?") | center,
-      text("This action cannnot be undone.") | center,
-      separator(),
-      text("Item: " + GetCurrentSelectionKey()) | center,
-      separator(),
-      buttons->Render() | center,
-    }) | border;
-  });
-  return ApplyModalBehavors(modal_renderer);
-}
-
-Component JsonEditor::BuildRenameModal() {
-  rename_key_input_ = Input(&rename_key_, "Rename Key", InputOption{.on_enter = [this]{ OnRenameSubmit(); }});
-  rename_key_input_ |= CatchEvent([this](Event event) {
-    if (event == Event::Return) {
-      OnRenameSubmit();
-      return true;
-    }
-    return false;
-  });
-  auto buttons = Container::Horizontal({
-    Button("OK", [this] { OnAddSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
-    Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
-  });
-  auto modal = Container::Vertical({
-    rename_key_input_,
-    buttons,
-  });
-  auto modal_renderer = Renderer(modal, [this, buttons] {
-    json& node = GetNode(input_json_, current_path_);
-    if (node.is_array()) {
-      return vbox({
-        text("Cannot Rename an Element in an Array"),
-        separator(),
-        Button("Go Back", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); })->Render(),
-      }) | border;
-    }
-    return vbox({
-      text("Rename This Key") | center,
-      separator(),
-      rename_key_input_->Render(),
       buttons->Render() | center,
     }) | border;
   });
@@ -577,6 +472,24 @@ void JsonEditor::OnAddSubmit() {
   RefreshTreeAndCloseModal(new_index);
 }
 
+Component JsonEditor::BuildDeleteModal() {
+  auto buttons = Container::Horizontal({
+    Button("Yes (Delete)", [this] { OnDeleteSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 18),
+    Button("No (Cancel)", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 18),
+  });
+  auto modal_renderer = Renderer(buttons, [this, buttons] {
+    return vbox({
+      text("Are you sure you want to delete this item?") | center,
+      text("This action cannnot be undone.") | center,
+      separator(),
+      text("Item: " + GetCurrentSelectionKey()) | center,
+      separator(),
+      buttons->Render() | center,
+    }) | border;
+  });
+  return ApplyModalBehavors(modal_renderer);
+}
+
 bool JsonEditor::OnOpenDeleteModal() {
   std::string key = GetCurrentSelectionKey();
   if (key == "[None]" || key == "..") {
@@ -636,6 +549,42 @@ void JsonEditor::OnDeleteSubmit() {
     editor_hint_ = "Error: Failed to delete item.";
   }
   RefreshTreeAndCloseModal(selected_tree_item_index_ - 1);
+}
+
+Component JsonEditor::BuildRenameModal() {
+  rename_key_input_ = Input(&rename_key_, "Rename Key", InputOption{.on_enter = [this]{ OnRenameSubmit(); }});
+  rename_key_input_ |= CatchEvent([this](Event event) {
+    if (event == Event::Return) {
+      OnRenameSubmit();
+      return true;
+    }
+    return false;
+  });
+  auto buttons = Container::Horizontal({
+    Button("OK", [this] { OnAddSubmit(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
+    Button("Cancel", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption()) | size(WIDTH, EQUAL, 12),
+  });
+  auto modal = Container::Vertical({
+    rename_key_input_,
+    buttons,
+  });
+  auto modal_renderer = Renderer(modal, [this, buttons] {
+    json& node = GetNode(input_json_, current_path_);
+    if (node.is_array()) {
+      return vbox({
+        text("Cannot Rename an Element in an Array"),
+        separator(),
+        Button("Go Back", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); })->Render(),
+      }) | border;
+    }
+    return vbox({
+      text("Rename This Key") | center,
+      separator(),
+      rename_key_input_->Render(),
+      buttons->Render() | center,
+    }) | border;
+  });
+  return ApplyModalBehavors(modal_renderer);
 }
 
 bool JsonEditor::OnOpenRenameModal() {
@@ -716,9 +665,61 @@ void JsonEditor::RefreshTreeAndCloseModal(int focus_index) {
   modal_state_ = 0;
 }
 
-std::string JsonEditor::CleanStringForJson(std::string str) {
+void JsonEditor::PerformUndo() {
+  if (history_manager_.CanUndo()) {
+    const EditAction* action = history_manager_.Undo();
+    if (action) {
+      RestoreView(*action);
+    }
+  }
+}
+
+void JsonEditor::PerformRedo() {
+  if (history_manager_.CanRedo()) {
+    const EditAction* action = history_manager_.Redo();
+    if (action) {
+      RestoreView(*action);
+    }
+  }
+}
+
+void JsonEditor::RestoreView(const EditAction& action) {
+  current_path_ = action.path;
+  UpdateBreadcrumbComponent();
+  UpdateTreeEntries();
+  const int new_index = GetIndexFromEntries(action.focus_key);
+  selected_tree_item_index_ = new_index;
+  UpdateEditorPane();
+  tree_menu_->TakeFocus();
+}
+
+json& JsonEditor::GetNode(json& root, const std::vector<std::string>& path) const {
+  json* node = &root;
+  for (const auto& key_or_index : path) {
+    try {
+      if (node->is_object()) {
+        node = &(*node)[key_or_index];
+      } else if (node->is_array()) {
+        size_t index = std::stoul(key_or_index);
+        node = &(*node)[index];
+      }
+    } catch (...) {
+      return root;
+    }
+  }
+  return *node;
+}
+
+std::string JsonEditor::CleanStringForJson(std::string str) const {
   str.erase(std::remove(str.begin(), str.end(), '\n'), str.end());
   return str;
+}
+
+std::string JsonEditor::GetCurrentSelectionKey() {
+  if (entries_.empty() || selected_tree_item_index_ < 0 || selected_tree_item_index_ >= entries_.size()) {
+    return "[None]";
+  }
+  return entries_[selected_tree_item_index_].key;
 }
 
 json* JsonEditor::GetCurrentSelectedNode(std::string& out_key) const {
@@ -747,25 +748,13 @@ json* JsonEditor::GetCurrentSelectedNode(std::string& out_key) const {
   return nullptr;
 }
 
-int JsonEditor::GetIndexFromEntries(const std::string& key) {
+int JsonEditor::GetIndexFromEntries(const std::string& key) const {
   for (size_t i = 0; i < entries_.size(); ++i) {
     if (entries_[i].key == key) {
       return static_cast<int>(i);
     }
   }
   return -1;
-}
-
-ButtonOption JsonEditor::GetModalButtonOption() const {
-  auto option = ButtonOption::Simple();
-  option.transform = [](const EntryState& s) {
-    auto element = text(s.label);
-    if (s.focused) {
-      element |= inverted;
-    }
-    return element | center | border;
-  };
-  return option;
 }
 
 Decorator JsonEditor::GetColorFromType(const json::value_t type) const {
@@ -781,3 +770,16 @@ Decorator JsonEditor::GetColorFromType(const json::value_t type) const {
     case json::value_t::discarded:        return color(Color::GrayLight);
   }
 }
+
+ButtonOption JsonEditor::GetModalButtonOption() const {
+  auto option = ButtonOption::Simple();
+  option.transform = [](const EntryState& s) {
+    auto element = text(s.label);
+    if (s.focused) {
+      element |= inverted;
+    }
+    return element | center | border;
+  };
+  return option;
+}
+
