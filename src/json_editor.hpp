@@ -151,6 +151,50 @@ class JsonEditor {
   /// @param action 復元する操作。
   void RestoreView(const EditAction& action);
 
+  // Undo/Redo用のアクション実装
+  /// @brief 値を編集する。
+  /// @param path 親ノードへのパス。
+  /// @param key 編集対象のキー。
+  /// @param value 設定する値。
+  void ExecuteEditValue(const std::vector<std::string>& path, const std::string& key, const json& value);
+
+  /// @brief キーと値のペアを追加する。
+  /// @param path 親ノードへのパス。
+  /// @param key 追加するキー。
+  /// @param value 追加する値。
+  void ExecuteAddKey(const std::vector<std::string>& path, const std::string& key, const json& value);
+
+  /// @brief キーを削除する。
+  /// @param path 親ノードへのパス。
+  /// @param key 削除するキー。
+  void ExecuteRemoveKey(const std::vector<std::string>& path, const std::string& key);
+
+  /// @brief 配列に要素を追加する。
+  /// @param path 配列へのパス。
+  /// @param value 追加する値。
+  void ExecuteAddArrayElement(const std::vector<std::string>& path, const json& value);
+
+  /// @brief 配列の最後の要素を削除する。
+  /// @param path 配列へのパス。
+  void ExecuteRemoveLastArrayElement(const std::vector<std::string>& path);
+
+  /// @brief 配列の指定位置に要素を挿入する。
+  /// @param path 配列へのパス。
+  /// @param index 挿入するインデックス。
+  /// @param value 挿入する値。
+  void ExecuteInsertArrayElement(const std::vector<std::string>& path, int index, const json& value);
+
+  /// @brief 配列の指定位置の要素を削除する。
+  /// @param path 配列へのパス。
+  /// @param index 削除するインデックス。
+  void ExecuteRemoveArrayElement(const std::vector<std::string>& path, int index);
+
+  /// @brief キー名を変更する。
+  /// @param path 親ノードへのパス。
+  /// @param old_key 変更前のキー。
+  /// @param new_key 変更後のキー。
+  void ExecuteRenameKey(const std::vector<std::string>& path, const std::string& old_key, const std::string& new_key);
+
   /* ユーティリティ */
   /// @brief ルートからのパスに基づいてjsonのノードを得る。
   /// @param root ルートから始まるjsonデータ。

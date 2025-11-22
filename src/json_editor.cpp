@@ -303,26 +303,8 @@ void JsonEditor::OnEditorEnter() {
     json new_value = *new_node_ptr;
     std::vector<std::string> path = current_path_;
     history_manager_.Push({
-      [this, path, key, old_value]() {
-        json& parent = GetNode(input_json_, path);
-        if (parent.is_array()) {
-          try {
-            parent[std::stoul(key)] = old_value;
-          } catch (...) {}
-        } else {
-          parent[key] = old_value;
-        }
-      },
-      [this, path, key, new_value]() {
-        json& parent = GetNode(input_json_, path);
-        if (parent.is_array()) {
-          try {
-            parent[std::stoul(key)] = new_value;
-          } catch (...) {}
-        } else {
-          parent[key] = new_value;
-        }
-      },
+      [this, path, key, old_value]() { ExecuteEditValue(path, key, old_value); },
+      [this, path, key, new_value]() { ExecuteEditValue(path, key, new_value); },
       path,
       key,
     });
@@ -428,14 +410,10 @@ void JsonEditor::OnAddSubmit() {
       add_key_input_->TakeFocus();
       return;
     }
-    node[cleaned_key] = nullptr;
+    ExecuteAddKey(current_path_, cleaned_key, nullptr);
     history_manager_.Push({
-      [this, path, cleaned_key]() {
-        GetNode(input_json_, path).erase(cleaned_key);
-      },
-      [this, path, cleaned_key]() {
-        GetNode(input_json_, path)[cleaned_key] = nullptr;
-      },
+      [this, path, cleaned_key]() { ExecuteRemoveKey(path, cleaned_key); },
+      [this, path, cleaned_key]() { ExecuteAddKey(path, cleaned_key, nullptr); },
       path,
       cleaned_key,
     });
@@ -449,20 +427,14 @@ void JsonEditor::OnAddSubmit() {
     } catch (...) {
       parsed_value = cleaned_value;
     }
-    node.push_back(parsed_value);
+    ExecuteAddArrayElement(current_path_, parsed_value);
     history_manager_.Push({
-      [this, path]() {
-        json& arr = GetNode(input_json_, path);
-        if (!arr.empty()) arr.erase(arr.size() - 1);
-      },
-      [this, path, parsed_value]() {
-        GetNode(input_json_, path).push_back(parsed_value);
-      },
+      [this, path]() { ExecuteRemoveLastArrayElement(path); },
+      [this, path, parsed_value]() { ExecuteAddArrayElement(path, parsed_value); },
       path,
       std::to_string(node.size() - 1),
     });
     UpdateTreeEntries();
-    // フォーカスするのは最後の項目
     new_index = static_cast<int>(entries_.size() - 1);
   } else {
     modal_state_ = 0;
@@ -510,37 +482,20 @@ void JsonEditor::OnDeleteSubmit() {
   try {
     if (node.is_object()) {
       deleted_value = node[key];
-      node.erase(key);
+      ExecuteRemoveKey(current_path_, key);
       history_manager_.Push({
-        [this, path, key, deleted_value]() {
-          GetNode(input_json_, path)[key] = deleted_value;
-        },
-        [this, path, key]() {
-          GetNode(input_json_, path).erase(key);
-        },
+        [this, path, key, deleted_value]() { ExecuteAddKey(path, key, deleted_value); },
+        [this, path, key]() { ExecuteRemoveKey(path, key); },
         path,
         key,
       });
     } else if (node.is_array()) {
       deleted_index = std::stoul(key);
       deleted_value = node[deleted_index];
-      node.erase(std::stoul(key));
+      ExecuteRemoveArrayElement(current_path_, deleted_index);
       history_manager_.Push({
-        [this, path, deleted_index, deleted_value]() {
-          json& arr = GetNode(input_json_, path);
-          if (arr.is_array()) {
-            auto iter = arr.begin();
-            if (deleted_index <= arr.size()) {
-              arr.insert(iter + deleted_index, deleted_value);
-            }
-          }
-        },
-        [this, path, deleted_index]() {
-          json& arr = GetNode(input_json_, path);
-          if (arr.is_array() && deleted_index < arr.size()) {
-            arr.erase(deleted_index);
-          }
-        },
+        [this, path, deleted_index, deleted_value]() { ExecuteInsertArrayElement(path, deleted_index, deleted_value); },
+        [this, path, deleted_index]() { ExecuteRemoveArrayElement(path, deleted_index); },
         path,
         std::to_string(deleted_index > 0 ? deleted_index - 1 : 0),
       });
@@ -618,22 +573,11 @@ void JsonEditor::OnRenameSubmit() {
     rename_key_input_->TakeFocus();
     return;
   }
-  node[cleaned_key] = node[current_key];
-  if (cleaned_key != current_key) {
-    node.erase(current_key);
-  }
+  ExecuteRenameKey(current_path_, current_key, cleaned_key);
   std::vector<std::string> path = current_path_;
   history_manager_.Push({
-    [this, path, current_key, cleaned_key]() {
-      json& node = GetNode(input_json_, path);
-      node[current_key] = node[cleaned_key];
-      node.erase(cleaned_key);
-    },
-    [this, path, current_key, cleaned_key]() {
-      json& node = GetNode(input_json_, path);
-      node[cleaned_key] = node[current_key];
-      node.erase(current_key);
-    },
+    [this, path, current_key, cleaned_key]() { ExecuteRenameKey(path, cleaned_key, current_key); },
+    [this, path, current_key, cleaned_key]() { ExecuteRenameKey(path, current_key, cleaned_key); },
     path,
     cleaned_key,
   });
@@ -691,6 +635,57 @@ void JsonEditor::RestoreView(const EditAction& action) {
   selected_tree_item_index_ = new_index;
   UpdateEditorPane();
   tree_menu_->TakeFocus();
+}
+
+void JsonEditor::ExecuteEditValue(const std::vector<std::string>& path, const std::string& key, const json& value) {
+  json& parent = GetNode(input_json_, path);
+  if (parent.is_array()) {
+    try {
+      parent[std::stoul(key)] = value;
+    } catch (...) {}
+  } else {
+    parent[key] = value;
+  }
+}
+
+void JsonEditor::ExecuteAddKey(const std::vector<std::string>& path, const std::string& key, const json& value) {
+  GetNode(input_json_, path)[key] = value;
+}
+
+void JsonEditor::ExecuteRemoveKey(const std::vector<std::string>& path, const std::string& key) {
+  GetNode(input_json_, path).erase(key);
+}
+
+void JsonEditor::ExecuteAddArrayElement(const std::vector<std::string>& path, const json& value) {
+  GetNode(input_json_, path).push_back(value);
+}
+
+void JsonEditor::ExecuteRemoveLastArrayElement(const std::vector<std::string>& path) {
+  json& arr = GetNode(input_json_, path);
+  if (!arr.empty()) arr.erase(arr.size() - 1);
+}
+
+void JsonEditor::ExecuteInsertArrayElement(const std::vector<std::string>& path, int index, const json& value) {
+  json& arr = GetNode(input_json_, path);
+  if (arr.is_array()) {
+    auto iter = arr.begin();
+    if (index <= arr.size()) {
+      arr.insert(iter + index, value);
+    }
+  }
+}
+
+void JsonEditor::ExecuteRemoveArrayElement(const std::vector<std::string>& path, int index) {
+  json& arr = GetNode(input_json_, path);
+  if (arr.is_array() && index < arr.size()) {
+    arr.erase(index);
+  }
+}
+
+void JsonEditor::ExecuteRenameKey(const std::vector<std::string>& path, const std::string& old_key, const std::string& new_key) {
+  json& node = GetNode(input_json_, path);
+  node[new_key] = node[old_key];
+  node.erase(old_key);
 }
 
 json& JsonEditor::GetNode(json& root, const std::vector<std::string>& path) const {
