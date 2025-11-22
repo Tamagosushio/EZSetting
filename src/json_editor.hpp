@@ -131,6 +131,19 @@ class JsonEditor {
   /// @brief 改名モーダルで行う処理。
   void OnRenameSubmit();
 
+  /// @brief 検索モーダルを構築する。
+  Component BuildSearchModal();
+
+  /// @brief 検索モーダルを開く処理。
+  /// @return モーダルを開けたらtrue。開けなかったらfalse。
+  bool OnOpenSearchModal();
+
+  /// @brief 検索モーダルで行う処理。
+  void OnSearchSubmit();
+
+  /// @brief 検索結果を選択したときの処理。
+  void OnSearchResultEnter();
+
   /// @brief モーダル共通の動作（Escで閉じる）を適用。
   /// @param modal 適用させるモーダル。
   /// @return 適用後のコンポーネント。
@@ -255,12 +268,20 @@ class JsonEditor {
   std::string new_key_;
   std::string new_value_;
   std::string rename_key_;
+  std::string search_query_;
+  std::vector<std::vector<std::string>> search_results_;
+  int current_search_result_index_;
+  std::vector<std::string> search_result_labels_;
+  MenuOption search_menu_option_;
   Component add_key_input_;
   Component add_value_input_;
   Component rename_key_input_;
+  Component search_input_;
+  Component search_results_menu_;
   Component main_layout_;
   Component add_modal_;
   Component delete_modal_;
   Component rename_modal_;
+  Component search_modal_;
   Component modal_container_;
 };

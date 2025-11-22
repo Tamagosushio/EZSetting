@@ -75,12 +75,14 @@ JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<vo
   add_modal_ = BuildAddModal();
   delete_modal_ = BuildDeleteModal();
   rename_modal_ = BuildRenameModal();
+  search_modal_ = BuildSearchModal();
   // 全コンポーネントの管理
   modal_container_ = Container::Tab({
     main_layout_,
     add_modal_,
     delete_modal_,
     rename_modal_,
+    search_modal_,
   }, &modal_state_);
   // 状態初期化
   UpdateTreeEntries();
@@ -106,6 +108,11 @@ Component JsonEditor::GetLayout() {
       document = dbox({
         document,
         rename_modal_->Render() | clear_under | center,
+      });
+    } else if (modal_state_ == 4) {
+      document = dbox({
+        document,
+        search_modal_->Render() | clear_under | center,
       });
     }
     return document;
@@ -179,6 +186,9 @@ Component JsonEditor::BuildMainLayout() {
       if (event == Event::Character('y')) {
         PerformRedo();
         return true;
+      }
+      if (event == Event::Character('/')) {
+        return OnOpenSearchModal();
       }
     }
     return false;
@@ -584,6 +594,112 @@ void JsonEditor::OnRenameSubmit() {
   UpdateTreeEntries();
   int new_index = GetIndexFromEntries(cleaned_key);
   RefreshTreeAndCloseModal(new_index);
+}
+
+Component JsonEditor::BuildSearchModal() {
+  search_input_ = Input(&search_query_, "Search", InputOption{.on_enter = [this]{ OnSearchSubmit(); }});
+  search_input_ |= CatchEvent([this](Event event) {
+    if (event == Event::Return) {
+      search_results_menu_->TakeFocus();
+      OnSearchSubmit();
+      return true;
+    }
+    return false;
+  });
+  search_menu_option_.on_enter = [this] { OnSearchResultEnter(); };
+  search_results_menu_ = Menu(&search_result_labels_, &current_search_result_index_, search_menu_option_);
+  auto modal_layout = Container::Vertical({
+    search_input_,
+    search_results_menu_,
+  });
+  auto modal_renderer = Renderer(modal_layout, [this] {
+    return vbox({
+      text("Search") | center,
+      separator(),
+      search_input_->Render(),
+      separator(),
+      (search_result_labels_.empty()) ? text("No results") | center : search_results_menu_->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 10),
+    }) | border | size(WIDTH, GREATER_THAN, 40);
+  });
+  return ApplyModalBehavors(modal_renderer);
+}
+
+bool JsonEditor::OnOpenSearchModal() {
+  search_query_ = "";
+  search_result_labels_.clear();
+  search_results_.clear();
+  modal_state_ = 4;
+  search_input_->TakeFocus();
+  return true;
+}
+
+void JsonEditor::OnSearchSubmit() {
+  if (search_query_.empty()) {
+    return;
+  }
+  search_results_.clear();
+  search_result_labels_.clear();
+  current_search_result_index_ = 0;
+  // 再帰検索ロジック
+  std::function<void(const json&, std::vector<std::string>)> search_recursive = [&](const json& node, std::vector<std::string> path) {
+    auto get_path_string = [](const std::vector<std::string>& p) {
+      std::string s = "";
+      for (size_t i = 0; i < p.size(); ++i) {
+        s += p[i];
+        if (i < p.size() - 1) s += " > ";
+      }
+      return s;
+    };
+    if (node.is_object()) {
+      for (auto& [key, val] : node.items()) {
+        std::vector<std::string> current_path = path;
+        current_path.push_back(key);
+        // キーの部分一致
+        if (key.find(search_query_) != std::string::npos) {
+          search_results_.push_back(current_path);
+          search_result_labels_.push_back("Key: " + key + " (Path: " + get_path_string(current_path) + ")");
+        }
+        // 値(文字列)の部分一致
+        if (val.is_string() && val.get<std::string>().find(search_query_) != std::string::npos) {
+          search_results_.push_back(current_path);
+          search_result_labels_.push_back("Val: " + val.get<std::string>() + " (Path: " + get_path_string(current_path) + ")");
+        }
+        search_recursive(val, current_path);
+      }
+    } else if (node.is_array()) {
+      for (size_t i = 0; i < node.size(); ++i) {
+        std::vector<std::string> current_path = path;
+        current_path.push_back(std::to_string(i));
+        // 値(文字列)の部分一致
+        if (node[i].is_string() && node[i].get<std::string>().find(search_query_) != std::string::npos) {
+          search_results_.push_back(current_path);
+          search_result_labels_.push_back("Val: " + node[i].get<std::string>() + " (Path: " + get_path_string(current_path) + ")");
+        }
+        search_recursive(node[i], current_path);
+      }
+    }
+  };
+  search_recursive(input_json_, {});
+  if (search_results_.empty()) {
+    search_result_labels_.push_back("No results found.");
+    search_input_->TakeFocus();
+  } else {
+    search_results_menu_->TakeFocus();
+  }
+}
+
+void JsonEditor::OnSearchResultEnter() {
+  if (search_results_.empty() || current_search_result_index_ < 0 || current_search_result_index_ >= search_results_.size()) {
+    return;
+  }
+  std::vector<std::string> target_path = search_results_[current_search_result_index_];
+  std::string target_key = target_path.back();
+  target_path.pop_back();
+  current_path_ = target_path;
+  UpdateBreadcrumbComponent();
+  UpdateTreeEntries();
+  int index = GetIndexFromEntries(target_key);
+  RefreshTreeAndCloseModal(index);
 }
 
 Component JsonEditor::ApplyModalBehavors(Component modal) {
