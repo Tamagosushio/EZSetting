@@ -76,6 +76,7 @@ JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<vo
   delete_modal_ = BuildDeleteModal();
   rename_modal_ = BuildRenameModal();
   search_modal_ = BuildSearchModal();
+  help_modal_ = BuildHelpModal();
   // 全コンポーネントの管理
   modal_container_ = Container::Tab({
     main_layout_,
@@ -83,6 +84,7 @@ JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<vo
     delete_modal_,
     rename_modal_,
     search_modal_,
+    help_modal_,
   }, &modal_state_);
   // 状態初期化
   UpdateTreeEntries();
@@ -113,6 +115,11 @@ Component JsonEditor::GetLayout() {
       document = dbox({
         document,
         search_modal_->Render() | clear_under | center,
+      });
+    } else if (modal_state_ == 5) {
+      document = dbox({
+        document,
+        help_modal_->Render() | clear_under | center,
       });
     }
     return document;
@@ -148,7 +155,7 @@ Component JsonEditor::BuildMainLayout() {
       filler(),
       text(editor_hint_) | dim,
       filler(),
-      text("[a] Add (Key/Value) | [d] Delete | [r] Rename | [z] Undo | [y] Redo | [q] Quit") | dim,
+      text("[?] Help | [q] Quit") | dim,
     }) | borderLight;
   });
   // 全体レイアウト
@@ -189,6 +196,9 @@ Component JsonEditor::BuildMainLayout() {
       }
       if (event == Event::Character('/')) {
         return OnOpenSearchModal();
+      }
+      if (event == Event::Character('?')) {
+        return OnOpenHelpModal();
       }
     }
     return false;
@@ -709,6 +719,46 @@ void JsonEditor::OnSearchResultEnter() {
   UpdateTreeEntries();
   int index = GetIndexFromEntries(target_key);
   RefreshTreeAndCloseModal(index);
+}
+
+Component JsonEditor::BuildHelpModal() {
+  auto close_button = Button("Close", [this] { modal_state_ = 0; tree_menu_->TakeFocus(); }, GetModalButtonOption());
+  auto modal_renderer = Renderer(close_button, [this, close_button] {
+    return vbox({
+      text("Help & Key Bindings") | center | bold,
+      separator(),
+      hbox({
+        vbox({
+          text("  Navigation") | bold,
+          text("    Up    / k  : Move Up"),
+          text("    Down  / j  : Move Down"),
+          text("    Left  / h  : Go to Parent"),
+          text("    Right / l  : Enter Child / Edit"),
+          text("    Enter      : Enter Child / Edit"),
+        }) | flex | size(WIDTH, GREATER_THAN, 40),
+        separator(),
+        vbox({
+          text("  Actions") | bold,
+          text("    a    : Add Item"),
+          text("    d    : Delete Item"),
+          text("    r    : Rename Key"),
+          text("    /    : Search"),
+          text("    z    : Undo"),
+          text("    y    : Redo"),
+          text("    ?    : Show Help"),
+          text("    q    : Quit"),
+        }) | flex | size(WIDTH, GREATER_THAN, 30),
+      }),
+      separator(),
+      close_button->Render() | center,
+    }) | border;
+  });
+  return ApplyModalBehavors(modal_renderer);
+}
+
+bool JsonEditor::OnOpenHelpModal() {
+  modal_state_ = 5;
+  return true;
 }
 
 Component JsonEditor::ApplyModalBehavors(Component modal) {

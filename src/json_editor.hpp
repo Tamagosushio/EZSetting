@@ -138,6 +138,13 @@ class JsonEditor {
   /// @return モーダルを開けたらtrue。開けなかったらfalse。
   bool OnOpenSearchModal();
 
+  /// @brief ヘルプモーダルを構築する。
+  Component BuildHelpModal();
+
+  /// @brief ヘルプモーダルを開く処理。
+  /// @return モーダルを開けたらtrue。開けなかったらfalse。
+  bool OnOpenHelpModal();
+
   /// @brief 検索モーダルで行う処理。
   void OnSearchSubmit();
 
@@ -285,5 +292,6 @@ class JsonEditor {
   Component delete_modal_;
   Component rename_modal_;
   Component search_modal_;
+  Component help_modal_;
   Component modal_container_;
 };
