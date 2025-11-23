@@ -269,6 +269,7 @@ class JsonEditor {
   std::string new_value_;
   std::string rename_key_;
   std::string search_query_;
+  bool search_from_root_;
   std::vector<std::vector<std::string>> search_results_;
   int current_search_result_index_;
   std::vector<std::string> search_result_labels_;
@@ -277,6 +278,7 @@ class JsonEditor {
   Component add_value_input_;
   Component rename_key_input_;
   Component search_input_;
+  Component search_from_root_checkbox_;
   Component search_results_menu_;
   Component main_layout_;
   Component add_modal_;

@@ -35,7 +35,7 @@ const EditAction* HistoryManager::Redo() {
 }
 
 JsonEditor::JsonEditor(json& data, const std::string& filename, std::function<void()> on_quit)
-  : input_json_(data), filename_(filename), on_quit_(on_quit), selected_tree_item_index_(0), selected_editor_tab_index_(0) {
+  : input_json_(data), filename_(filename), on_quit_(on_quit), selected_tree_item_index_(0), selected_editor_tab_index_(0), search_from_root_(true) {
   // メインUIコンポーネント
   edit_component_ = Input(&editable_content_, "Enter value (e.g., \"text\", 123, true, null)", edit_input_option_);
   edit_component_ |= CatchEvent([this](Event event) {
@@ -606,10 +606,12 @@ Component JsonEditor::BuildSearchModal() {
     }
     return false;
   });
+  search_from_root_checkbox_ = Checkbox("Search from root", &search_from_root_);
   search_menu_option_.on_enter = [this] { OnSearchResultEnter(); };
   search_results_menu_ = Menu(&search_result_labels_, &current_search_result_index_, search_menu_option_);
   auto modal_layout = Container::Vertical({
     search_input_,
+    search_from_root_checkbox_,
     search_results_menu_,
   });
   auto modal_renderer = Renderer(modal_layout, [this] {
@@ -617,6 +619,7 @@ Component JsonEditor::BuildSearchModal() {
       text("Search") | center,
       separator(),
       search_input_->Render(),
+      search_from_root_checkbox_->Render() | center,
       separator(),
       (search_result_labels_.empty()) ? text("No results") | center : search_results_menu_->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 10),
     }) | border | size(WIDTH, GREATER_THAN, 40);
@@ -679,7 +682,13 @@ void JsonEditor::OnSearchSubmit() {
       }
     }
   };
-  search_recursive(input_json_, {});
+
+  if (search_from_root_) {
+    search_recursive(input_json_, {});
+  } else {
+    json& current_node = GetNode(input_json_, current_path_);
+    search_recursive(current_node, current_path_);
+  }
   if (search_results_.empty()) {
     search_result_labels_.push_back("No results found.");
     search_input_->TakeFocus();
