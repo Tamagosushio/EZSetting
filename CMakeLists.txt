@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.22)
 
-project(EZSetting
+project(ezsetting
   LANGUAGES CXX
   VERSION 1.0.0
 )
@@ -28,14 +28,14 @@ FetchContent_Declare(json
 )
 FetchContent_MakeAvailable(ftxui json)
 
-add_executable(EZSetting
+add_executable(ezsetting
   src/main.cpp
   src/json_editor.cpp
   src/breadcrumbs.cpp
 )
-target_include_directories(EZSetting PRIVATE src)
+target_include_directories(ezsetting PRIVATE src)
 
-target_link_libraries(EZSetting
+target_link_libraries(ezsetting
   PRIVATE ftxui::screen
   PRIVATE ftxui::dom
   PRIVATE ftxui::component
