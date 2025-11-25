@@ -1,25 +1,94 @@
 {
-  "id": 67,
-  "skills": [
-    {
-      "isLike": true,
-      "language": "C++",
-      "year": 3.5
-    },
-    {
-      "isLike": false,
-      "language": "Python",
-      "year": 5.0
+  "deeplyNested": {
+    "level1": {
+      "level2": {
+        "level3": {
+          "level4": {
+            "level5": {
+              "message": "You found me!",
+              "secretCode": 67
+            }
+          }
+        }
+      }
     }
-  ],
-  "tags": [
-    "C++",
-    "tui",
-    "json"
-  ],
-  "user": {
-    "isStudent": true,
-    "name": "tamagosushi",
-    "profileImage": null
+  },
+  "emptyStructures": {
+    "emptyArray": [],
+    "emptyObject": {}
+  },
+  "project": {
+    "description": "A sample JSON file to demonstrate the capabilities of EZSetting editor.",
+    "isActive": true,
+    "meta": {
+      "author": {
+        "contact": null,
+        "name": "tamagosushi",
+        "socials": {
+          "AtCoder": "tamagosushi",
+          "github": "https://github.com/Tamagosushio"
+        }
+      },
+      "created": "2025-11-25"
+    },
+    "name": "sample.json"
+  },
+  "specialCharacters": {
+    "emoji": "🚀✨🎉",
+    "japanese": "こんにちは世界",
+    "symbols": "!@#$%^&*()_+-=[]{}|;':\",./<>?"
+  },
+  "testData": {
+    "booleans": [
+      true,
+      false,
+      true
+    ],
+    "floats": [
+      1.1,
+      2.2,
+      3.14159,
+      -0.001
+    ],
+    "integers": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      -100,
+      0
+    ],
+    "matrix": [
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ],
+    "mixedArray": [
+      1,
+      "two",
+      3.0,
+      false,
+      null,
+      {
+        "nested": "object"
+      },
+      [
+        "nested",
+        "array"
+      ]
+    ]
   }
 }
