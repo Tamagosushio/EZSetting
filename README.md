@@ -1,5 +1,5 @@
 # EZSetting
-![ezsetting](ezsetting.png)
+![ezsetting](ezsetting.gif)
 
 ## Overview
 EZSettingは、ターミナル上で動作するJSONファイルエディタです。  
