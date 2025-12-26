@@ -1,4 +1,5 @@
 #include "json_editor.hpp"
+#include "json_types.hpp"
 
 #include <string>
 #include <iostream>
@@ -16,7 +17,7 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  json input_json;
+  ordered_json input_json;
   try {
     input_file >> input_json;
   } catch (json::exception& e) {

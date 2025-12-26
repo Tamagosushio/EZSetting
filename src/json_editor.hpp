@@ -1,21 +1,21 @@
 #pragma once
 
 #include "breadcrumbs.hpp"
+#include "json_types.hpp"
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
-#include <nlohmann/json.hpp>
-#include <memory>
-#include <vector>
 #include <string>
+#include <vector>
+#include <memory>
 #include <iostream>
 #include <functional>
 #include <algorithm>
 #include <stack>
 
 using namespace ftxui;
-using json = nlohmann::json;
+using json = ordered_json;
 
 /// @brief メニュー項目が持つ情報
 struct TreeEntry {

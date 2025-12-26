@@ -22,18 +22,22 @@ FetchContent_Declare(ftxui
   GIT_SHALLOW    TRUE
   EXCLUDE_FROM_ALL
 )
+FetchContent_Declare(fifo_map
+  GIT_REPOSITORY https://github.com/nlohmann/fifo_map.git
+  GIT_TAG        master
+)
 FetchContent_Declare(json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.12.0
 )
-FetchContent_MakeAvailable(ftxui json)
+FetchContent_MakeAvailable(ftxui json fifo_map)
 
 add_executable(ezsetting
   src/main.cpp
   src/json_editor.cpp
   src/breadcrumbs.cpp
 )
-target_include_directories(ezsetting PRIVATE src)
+target_include_directories(ezsetting PRIVATE src ${fifo_map_SOURCE_DIR}/src)
 
 target_link_libraries(ezsetting
   PRIVATE ftxui::screen
