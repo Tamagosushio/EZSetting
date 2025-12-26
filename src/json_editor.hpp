@@ -131,6 +131,13 @@ class JsonEditor {
   /// @brief 改名モーダルで行う処理。
   void OnRenameSubmit();
 
+  // 項目移動
+  /// @brief 選択中の項目を上に移動する。
+  void OnMoveUp();
+
+  /// @brief 選択中の項目を下に移動する。
+  void OnMoveDown();
+
   /// @brief 検索モーダルを構築する。
   Component BuildSearchModal();
 
@@ -214,6 +221,12 @@ class JsonEditor {
   /// @param old_key 変更前のキー。
   /// @param new_key 変更後のキー。
   void ExecuteRenameKey(const std::vector<std::string>& path, const std::string& old_key, const std::string& new_key);
+
+  /// @brief キーの順序を移動する。
+  /// @param path 親ノードへのパス。
+  /// @param key 移動するキー。
+  /// @param direction 移動方向 (-1: up, 1: down)。
+  void ExecuteMoveKey(const std::vector<std::string>& path, const std::string& key, int direction);
 
   /* ユーティリティ */
   /// @brief ルートからのパスに基づいてjsonのノードを得る。

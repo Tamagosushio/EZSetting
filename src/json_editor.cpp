@@ -194,6 +194,14 @@ Component JsonEditor::BuildMainLayout() {
         PerformRedo();
         return true;
       }
+      if (event == Event::Character('K')) {
+        OnMoveUp();
+        return true;
+      }
+      if (event == Event::Character('J')) {
+        OnMoveDown();
+        return true;
+      }
       if (event == Event::Character('/')) {
         return OnOpenSearchModal();
       }
@@ -606,6 +614,108 @@ void JsonEditor::OnRenameSubmit() {
   RefreshTreeAndCloseModal(new_index);
 }
 
+void JsonEditor::OnMoveUp() {
+  std::string key = GetCurrentSelectionKey();
+  if (key == "[None]" || key == "..") return;
+
+  std::vector<std::string> path = current_path_;
+  // 親が配列の場合、移動後のキー（インデックス）を計算してフォーカスを合わせる
+  std::string next_focus_key = key;
+  json& parent = GetNode(input_json_, path);
+  if (parent.is_array()) {
+    try {
+      int index = std::stoul(key);
+      if (index > 0) {
+        next_focus_key = std::to_string(index - 1);
+      }
+    } catch (...) {}
+  }
+
+  ExecuteMoveKey(path, key, -1);
+  history_manager_.Push({
+    [this, path, key]() { ExecuteMoveKey(path, key, 1); },
+    [this, path, key]() { ExecuteMoveKey(path, key, -1); },
+    path,
+    key
+  });
+
+  UpdateTreeEntries();
+  int new_index = GetIndexFromEntries(next_focus_key);
+  // 移動後はフォーカスを移動先に合わせる
+  if (new_index >= 0) selected_tree_item_index_ = new_index;
+  UpdateEditorPane();
+}
+
+void JsonEditor::OnMoveDown() {
+  std::string key = GetCurrentSelectionKey();
+  if (key == "[None]" || key == "..") return;
+
+  std::vector<std::string> path = current_path_;
+  // 親が配列の場合、移動後のキー（インデックス）を計算してフォーカスを合わせる
+  std::string next_focus_key = key;
+  json& parent = GetNode(input_json_, path);
+  if (parent.is_array()) {
+    try {
+      int index = std::stoul(key);
+      if (index < parent.size() - 1) {
+        next_focus_key = std::to_string(index + 1);
+      }
+    } catch (...) {}
+  }
+
+  ExecuteMoveKey(path, key, 1);
+  history_manager_.Push({
+    [this, path, key]() { ExecuteMoveKey(path, key, -1); },
+    [this, path, key]() { ExecuteMoveKey(path, key, 1); },
+    path,
+    key
+  });
+
+  UpdateTreeEntries();
+  int new_index = GetIndexFromEntries(next_focus_key);
+  if (new_index >= 0) selected_tree_item_index_ = new_index;
+  UpdateEditorPane();
+}
+
+void JsonEditor::ExecuteMoveKey(const std::vector<std::string>& path, const std::string& key, int direction) {
+  json& parent = GetNode(input_json_, path);
+  if (parent.is_array()) {
+    try {
+      int index = std::stoul(key);
+      int new_index = index + direction;
+      if (new_index < 0 || new_index >= parent.size()) return;
+
+      // Swap elements
+      std::swap(parent[index], parent[new_index]);
+    } catch (...) {}
+  } else if (parent.is_object()) {
+    // オブジェクトの順序変更は、全要素をリスト化して位置を入れ替え、再構築する
+    std::vector<std::pair<std::string, json>> items;
+    int index = -1;
+    int current_idx = 0;
+
+    // 既存のペアをコピー
+    for (auto& [k, v] : parent.items()) {
+      if (k == key) index = current_idx;
+      items.push_back({k, v});
+      current_idx++;
+    }
+
+    if (index == -1) return;
+    int new_index = index + direction;
+    if (new_index < 0 || new_index >= items.size()) return;
+
+    // Swap
+    std::swap(items[index], items[new_index]);
+
+    // 再構築
+    parent.clear();
+    for (const auto& item : items) {
+      parent[item.first] = item.second;
+    }
+  }
+}
+
 Component JsonEditor::BuildSearchModal() {
   search_input_ = Input(&search_query_, "Search", InputOption{.on_enter = [this]{ OnSearchSubmit(); }});
   search_input_ |= CatchEvent([this](Event event) {
@@ -745,6 +855,8 @@ Component JsonEditor::BuildHelpModal() {
           text("    /    : Search"),
           text("    z    : Undo"),
           text("    y    : Redo"),
+          text("    K    : Move Up"),
+          text("    J    : Move Down"),
           text("    ?    : Show Help"),
           text("    q    : Quit"),
         }) | flex | size(WIDTH, GREATER_THAN, 30),
